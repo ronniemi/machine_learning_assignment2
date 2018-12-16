@@ -369,6 +369,7 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
             self.classes_ = self.classes_[0]
 
         return self
+        return self
 
     def _validate_X_predict(self, X, check_input):
         """Validate X whenever one tries to predict, apply, predict_proba"""
@@ -807,48 +808,65 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             node_gnb.fit(data_set_x[i], data_set_y[i])
             models_dict[i] = node_gnb
 
-        print('a')
         return self
 
     def predict_proba(self, X, check_input=True):
         """Predict class probabilities of the input samples X.
-
-        The predicted class probability is the fraction of samples of the same
+         The predicted class probability is the fraction of samples of the same
         class in a leaf.
-
-        check_input : boolean, (default=True)
+         check_input : boolean, (default=True)
             Allow to bypass several input checking.
             Don't use this parameter unless you know what you do.
-
-        Parameters
+         Parameters
         ----------
         X : array-like or sparse matrix of shape = [n_samples, n_features]
             The input samples. Internally, it will be converted to
             ``dtype=np.float32`` and if a sparse matrix is provided
             to a sparse ``csr_matrix``.
-
-        check_input : bool
+         check_input : bool
             Run check_array on X.
-
-        Returns
+         Returns
         -------
         p : array of shape = [n_samples, n_classes], or a list of n_outputs
             such arrays if n_outputs > 1.
             The class probabilities of the input samples. The order of the
             classes corresponds to that in the attribute `classes_`.
         """
-        print('c')
         check_is_fitted(self, 'tree_')
         X = self._validate_X_predict(X, check_input)
+
         proba = self.tree_.predict(X)
 
         if self.n_outputs_ == 1:
+
+            nodes_idx = self.apply(X)
+            predictions = []
+
+            for i in range(len(nodes_idx)):
+                node_idx = nodes_idx[i]
+                gnb_model = models_dict[node_idx]
+                sample_prediction = gnb_model.predict([X[i]])
+                predictions.extend(sample_prediction)
+
+
             proba = proba[:, :self.n_classes_]
             normalizer = proba.sum(axis=1)[:, np.newaxis]
             normalizer[normalizer == 0.0] = 1.0
             proba /= normalizer
 
-            return proba
+            final_predictions = []
+
+            for i in range(len(X)):
+                sample_prediction = predictions[i]
+                if np.isnan(sample_prediction).any():
+                    final_predictions.append(proba[i])
+                else:
+                    pred = np.zeros(shape=(self.n_classes_))
+                    pred[int(sample_prediction)] = 1
+                    final_predictions.append(pred)
+
+            return final_predictions
+            # return proba
 
         else:
             all_proba = []
@@ -859,7 +877,6 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
                 normalizer[normalizer == 0.0] = 1.0
                 proba_k /= normalizer
                 all_proba.append(proba_k)
-
             return all_proba
 
     def predict_log_proba(self, X):
@@ -879,7 +896,6 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             The class log-probabilities of the input samples. The order of the
             classes corresponds to that in the attribute `classes_`.
         """
-        print('e')
         proba = self.predict_proba(X)
 
         if self.n_outputs_ == 1:
